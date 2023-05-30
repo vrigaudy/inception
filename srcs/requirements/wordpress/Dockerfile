@@ -1,44 +1,29 @@
-FROM	alpine:3.16
+FROM debian:buster
 
-ARG		PHP_VERSION=8 \
-		DB_NAME \
-		DB_USER \
-		DB_PASS
+RUN apt-get update -y \
+    && apt-get upgrade -y \
+	&& apt-get -y install wget \
+	&& apt install nano -y \
+	&& apt install net-tools
 
-RUN		apk update && apk upgrade && apk add --no-cache \
-		php${PHP_VERSION} \
-		php${PHP_VERSION}-fpm \
-		php${PHP_VERSION}-mysqli \
-		php${PHP_VERSION}-json \
-		php${PHP_VERSION}-curl \
-		php${PHP_VERSION}-dom \
-		php${PHP_VERSION}-exif \
-		php${PHP_VERSION}-fileinfo \
-		php${PHP_VERSION}-mbstring \
-		php${PHP_VERSION}-openssl \
-		php${PHP_VERSION}-xml \
-		php${PHP_VERSION}-zip \
-		php${PHP_VERSION}-redis \
-		wget \
-		unzip
+RUN apt-get install -y php7.3 \
+	php-fpm \
+	php-mysql \
+	php-mysqli
 
-RUN		sed -i "s|listen = 127.0.0.1:9000|listen = 9000|g" /etc/php8/php-fpm.d/www.conf
-RUN		sed -i "s|;listen.owner = nobody|listen.owner = nobody|g" /etc/php8/php-fpm.d/www.conf
-RUN		sed -i "s|;listen.group = nobody|listen.group = nobody|g" /etc/php8/php-fpm.d/www.conf
+RUN	mkdir -p /var/run/php/ \
+	&& mkdir -p /var/www/wordpress \
+	&& chown -R root:root /var/www/wordpress
 
-RUN		rm -f /var/cache/apk/*
+RUN	wget https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
+	&& chmod +x wp-cli.phar \
+	&& mv wp-cli.phar /usr/local/bin/wp \
+	&& wp core download --allow-root --locale=en_US --path=/var/www/wordpress 
 
-WORKDIR	/var/www
+COPY /conf/www.conf /etc/php/7.3/fpm/pool.d/www.conf
+COPY /conf/wp-config.php /var/www/wordpress/wp-config.php
+COPY /conf/auto_config.sh /tmp/auto_config.sh
 
-RUN		wget https://wordpress.org/latest.zip && \
-		unzip latest.zip && \
-		cp -rf wordpress/* . && \
-		rm -rf wordpress latest.zip
+EXPOSE 9000
 
-COPY	./requirements/wordpress/conf/wp-config-create.sh .
-
-RUN		sh wp-config-create.sh && \
-		rm wp-config-create.sh && \
-		chmod -R 0777 wp-content
-
-CMD		["/usr/sbin/php-fpm8", "-F"]
+ENTRYPOINT [ "sh", "/tmp/auto_config.sh" ]

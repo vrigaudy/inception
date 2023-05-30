@@ -1,30 +1,21 @@
-FROM	alpine:3.16
+FROM debian:buster
 
-ARG		DB_NAME \
-		DB_USER \
-		DB_ROOT \
-		DB_PASS
+RUN apt update -y \
+    && apt upgrade -y \
+    && apt install nano -y \
+    && apt-get install mariadb-server -y \
+    && apt-get install mariadb-client -y \
+    && apt install sudo -y \
+    && apt install systemd -y
 
-RUN		apk update && apk add --no-cache mariadb mariadb-client
+COPY conf/50-server.cnf	/etc/mysql/mariadb.conf.d/50-server.cnf
+COPY conf/config.sh	    /tmp/config.sh
 
-RUN		mkdir /var/run/mysqld; \
-		chmod 777 /var/run/mysqld; \
-		{ echo '[mysqld]'; \
-			echo 'skip-host-cache'; \
-			echo 'skip-name-resolve'; \
-			echo 'bind-address=0.0.0.0'; \
-		} | tee  /etc/my.cnf.d/docker.cnf; \
-		sed -i "s|skip-networking|skip-networking=0|g" \
-			/etc/my.cnf.d/mariadb-server.cnf
+EXPOSE 3306
 
-RUN		mysql_install_db --user=mysql --datadir=/var/lib/mysql
+RUN mkdir -p /var/run/mysqld
 
-EXPOSE	3306
+RUN sudo chown mysql:mysql /var/run/mysqld/
+RUN sudo chmod -R 755 /var/run/mysqld/
 
-COPY	requirements/mariadb/conf/createdb.sh .
-
-RUN		sh createdb.sh && rm createdb.sh
-
-USER	mysql
-
-CMD		["/usr/bin/mysqld", "--skip-log-error"]
+ENTRYPOINT ["sh", "/tmp/config.sh"]
